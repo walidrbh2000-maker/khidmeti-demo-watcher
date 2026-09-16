@@ -115,7 +115,13 @@ function initFirebase(): void {
   if (admin.apps.length > 0) return;
   const projectId = process.env['FIREBASE_PROJECT_ID'];
   const clientEmail = process.env['FIREBASE_CLIENT_EMAIL'];
-  const privateKey = process.env['FIREBASE_PRIVATE_KEY']?.replace(/\\n/g, '\n');
+  const rawKey = process.env['FIREBASE_PRIVATE_KEY'] ?? '';
+  // Accepts both storage forms: literal "\n" escapes (dotenv files) and
+  // real newlines (GitHub Secrets pasted multiline). Also strips wrapping
+  // quotes if the value was stored quoted.
+  const privateKey = rawKey
+    .replace(/^"|"$/g, '')
+    .replace(/\\n/g, '\n');
   if (!projectId || !clientEmail || !privateKey) {
     throw new Error(
       'Service account Firebase incomplet (FIREBASE_PROJECT_ID / CLIENT_EMAIL / PRIVATE_KEY).',
