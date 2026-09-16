@@ -1,0 +1,48 @@
+name: demo-watcher
+
+# Stateless commission watcher: fast accept/reopen sweep + 1 wilaya freshness
+# rotation per run. Public repo = unlimited free minutes.
+# End of life: delete this file (or the repo) when trials end.
+
+on:
+  schedule:
+    # Every 5 minutes. Worst-case accept delay ≈ 5 min + run time.
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+    inputs:
+      wilaya:
+        description: 'Wilaya index 1-58 (manual override)'
+        required: false
+        default: '1'
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci --ignore-scripts
+
+      - name: Run watcher cycle
+        env:
+          API_BASE: ${{ secrets.API_BASE }}
+          DEMO_CLIENT_UID: ${{ secrets.DEMO_CLIENT_UID }}
+          FIREBASE_WEB_API_KEY: ${{ secrets.FIREBASE_WEB_API_KEY }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
+          FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
+          # Rotation: minute-of-hour (0-59) mod 58 + 1 → full 58-wilaya
+          # sweep every ~5h, well under the 24h staleness threshold.
+          # Manual dispatch may override via the wilaya input.
+          WILAYA_IDX: ${{ inputs.wilaya || '1' }}
+        run: |
+          if [ -z "${{ inputs.wilaya }}" ]; then
+            export WILAYA_IDX=$(( $(date +%M) % 58 + 1 ))
+          fi
+          npx ts-node --transpile-only --compiler-options '{"module":"commonjs","moduleResolution":"node"}' watcher.ts
